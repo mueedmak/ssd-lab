@@ -9,11 +9,12 @@ pipeline {
     stages {
 
         stage('Clone Repo') {
-            steps {
-                echo '=== Pulling latest code ==='
-                git 'https://github.com/mueedmak/ssd-lab'
-            }
-        }
+    steps {
+        echo '=== Pulling latest code ==='
+        git branch: 'main', url: 'https://github.com/mueedmak/ssd-lab'
+    }
+}
+
 
         stage('Setup Python Environment') {
             steps {
