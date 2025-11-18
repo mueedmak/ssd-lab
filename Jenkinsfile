@@ -5,6 +5,11 @@ pipeline {
         VENV_DIR = 'venv'
         FLASK_APP = 'app.py'
     }
+    tools {
+    python 'Python310'
+}
+python -m venv %VENV_DIR%
+
 
     stages {
 
