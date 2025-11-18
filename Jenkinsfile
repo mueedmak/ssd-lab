@@ -2,32 +2,37 @@ pipeline {
     agent any
 
     stages {
-        stage('Clone') {
+
+        stage('Clone Repo') {
             steps {
-                git 'https://github.com/mueedmak/ssd-lab'
+                echo '=== Pulling latest code ==='
+                git branch: 'main', url: 'https://github.com/mueedmak/ssd-lab'
             }
         }
 
-        stage('Install Dependencies') {
+        stage('Simple Build') {
             steps {
+                echo '=== Running simple build ==='
                 bat """
-                python -m venv venv
-                call venv\\Scripts\\activate
-                pip install -r requirements.txt
+                echo Hello from Jenkins!
                 """
             }
         }
 
-        stage('Run Flask App') {
+        stage('Success Stage') {
             steps {
-                bat """
-                taskkill /IM python.exe /F || echo "No previous server running"
-
-                call venv\\Scripts\\activate
-                set FLASK_APP=app.py
-                start /B python -m flask run --host=0.0.0.0 --port=5000
-                """
+                echo '=== Pipeline will finish successfully ==='
             }
+        }
+
+    }
+
+    post {
+        success {
+            echo 'Pipeline succeeded!'
+        }
+        failure {
+            echo 'Pipeline failed.'
         }
     }
 }
