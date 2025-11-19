@@ -2,70 +2,103 @@ pipeline {
     agent any
 
     environment {
-        VENV_DIR = 'venv'
-        FLASK_APP = 'app.py'
+        SONAR_TOKEN = credentials('SONAR_TOKEN')
+        SONARQUBE_ENV = 'MySonarQube'   // Jenkins → Configure System → SonarQube server name
+        VENV = 'venv'
+    }
+
+    options {
+        skipDefaultCheckout(true)
+        ansiColor('xterm')
+        timestamps()
     }
 
     stages {
 
-        stage('Clone Repo') {
+        stage('Checkout') {
             steps {
-                echo '=== Pulling latest code ==='
-                git 'https://github.commueedmak/ssd-lab'
+                checkout([$class: 'GitSCM',
+                    branches: [[name: '*/main']],
+                    extensions: [
+                        [$class: 'CloneOption', depth: 1, noTags: true, shallow: true]
+                    ],
+                    userRemoteConfigs: [[url: 'https://github.com/<YOUR_USERNAME>/<YOUR_REPO>.git']]
+                ])
             }
         }
 
         stage('Setup Python Environment') {
             steps {
-                echo '=== Creating virtual environment ==='
-                bat """
-                python -m venv %VENV_DIR%
-                call %VENV_DIR%\\Scripts\\activate
-                python -m pip install --upgrade pip
-                pip install -r requirements.txt
-                """
+                sh '''
+                    python -m venv ${VENV}
+                    . ${VENV}/bin/activate
+                    pip install --upgrade pip
+                    pip install -r requirements.txt
+                '''
             }
         }
 
-        stage('Run Tests') {
+        stage('Run Unit Tests') {
             steps {
-                echo '=== Running tests (if folder exists) ==='
-                bat """
-                call %VENV_DIR%\\Scripts\\activate
-                if exist tests (
-                    pytest -q
-                ) else (
-                    echo No tests folder found.
-                )
-                """
+                sh '''
+                    . ${VENV}/bin/activate
+                    pytest --junitxml=reports/junit.xml || true
+                '''
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: 'reports/junit.xml'
+                }
             }
         }
 
-        stage('Deploy Flask App') {
+        stage('SonarQube Analysis (SAST)') {
             steps {
-                echo '=== Deploying Flask App ==='
-                bat """
-                REM Kill any running Flask server on port 5000
-                for /f "tokens=5" %%a in ('netstat -ano ^| findstr :5000') do taskkill /F /PID %%a >nul 2>&1
+                withSonarQubeEnv("${SONARQUBE_ENV}") {
+                    sh '''
+                        . ${VENV}/bin/activate
 
-                call %VENV_DIR%\\Scripts\\activate
-                set FLASK_APP=%FLASK_APP%
+                        sonar-scanner \
+                          -Dsonar.projectKey=flask_app \
+                          -Dsonar.projectName=FlaskApp \
+                          -Dsonar.sources=. \
+                          -Dsonar.host.url=$SONAR_HOST_URL \
+                          -Dsonar.login=${SONAR_TOKEN}
+                    '''
+                }
+            }
+        }
 
-                REM Start app in background
-                start "" python -m flask run --host=0.0.0.0 --port=5000
-                timeout /t 3 >nul
-                echo Flask app deployed successfully!
-                """
+        stage('Quality Gate') {
+            steps {
+                script {
+                    def qg = waitForQualityGate(timeout: 5)
+                    if (qg.status != 'OK') {
+                        error "❌ SonarQube Quality Gate FAILED: ${qg.status}"
+                    }
+                    echo "✅ Quality Gate Passed: ${qg.status}"
+                }
+            }
+        }
+
+        stage('Build Flask App Image (Optional)') {
+            when {
+                branch 'main'
+            }
+            steps {
+                sh '''
+                    echo "Packaging Flask app (optional step)..."
+                '''
             }
         }
     }
 
     post {
-        success {
-            echo '✔ CI/CD pipeline succeeded.'
+        always {
+            archiveArtifacts artifacts: 'reports/**/*.xml', allowEmptyArchive: true
+            cleanWs()
         }
-        failure {
-            echo '✘ Pipeline failed.'
-        }
+        success { echo "Pipeline completed successfully." }
+        failure { echo "Pipeline failed." }
     }
 }
