@@ -33,6 +33,25 @@ pipeline {
             }
         }
 
+        stage('SonarQube Scan') {
+    environment {
+        SONAR_TOKEN = credentials('SONAR_TOKEN')  // Jenkins credential with SonarQube token
+    }
+    steps {
+        sh """
+            $VENV_DIR/Scripts/pip install sonar-scanner
+            sonar-scanner \
+                -Dsonar.projectKey=flask_app \
+                -Dsonar.projectName=FlaskApp \
+                -Dsonar.sources=. \
+                -Dsonar.python.version=3.10 \
+                -Dsonar.exclusions=**/venv/**,**/.venv/**,**/migrations/**,**/static/** \
+                -Dsonar.login=$SONAR_TOKEN
+        """
+    }
+}
+
+        
         stage('Dependency Scan') {
             steps {
                 sh '$VENV_DIR/Scripts/pip install safety'
