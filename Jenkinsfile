@@ -12,7 +12,7 @@ pipeline {
                 checkout([
                     $class: 'GitSCM',
                     branches: [[name: '*/main']],
-                    userRemoteConfigs: [[url: 'https://github.com/your-repo/flask-app.git']]
+                    userRemoteConfigs: [[url: 'https://github.com/mueedmak/ssd-lab']]
                 ])
             }
         }
